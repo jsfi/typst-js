@@ -8,7 +8,11 @@ import { generatedPaths } from './ignored.config.ts';
  * One definition, both consumers.
  */
 export default defineConfig({
-	ignorePatterns: [...generatedPaths],
+	ignorePatterns: [
+		...generatedPaths,
+		// A Handlebars template for cargo-about, which oxfmt cannot parse.
+		'about.hbs',
+	],
 	bracketSameLine: true,
 	jsdoc: true,
 	singleQuote: true,

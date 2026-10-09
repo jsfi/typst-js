@@ -1,0 +1,29 @@
+[package]
+name = "typst_wasm"
+version = "0.1.0"
+edition = "2024"
+description = "The Typst compiler as a WebAssembly module with an in-memory file system"
+license = "Apache-2.0"
+repository = "https://github.com/jsfi/typst-js"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+js-sys = "=0.3.106"
+serde_json = "=1.0.151"
+typst = "=0.15.1"
+typst-eval = "=0.15.1"
+typst-layout = "=0.15.1"
+typst-pdf = "=0.15.1"
+typst-svg = "=0.15.1"
+wasm-bindgen = "=0.2.129"
+
+# Optimized for speed rather than size; CONTRIBUTING.md's Build section gives the trade-off.
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

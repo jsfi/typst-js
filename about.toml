@@ -1,0 +1,6 @@
+# Licenses accepted for the crates compiled into the WebAssembly module; `cargo about generate`
+# fails on any other, which is the review point for a new dependency's license.
+accepted = ["Apache-2.0", "MIT", "Unicode-3.0", "BSD-2-Clause", "BSD-3-Clause", "Zlib", "CC0-1.0"]
+targets = ["wasm32-unknown-unknown"]
+ignore-build-dependencies = true
+ignore-dev-dependencies = true

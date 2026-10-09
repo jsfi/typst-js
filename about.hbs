@@ -1,0 +1,19 @@
+# Third-party licenses
+
+The WebAssembly module in this package is compiled from the following Rust crates, under these
+licenses.
+
+{{#each overview}}
+- {{{name}}} ({{count}}): {{#each indices}}[{{../id}}](#license-{{this}}){{#unless @last}}, {{/unless}}{{/each}}
+{{/each}}
+
+{{#each licenses}}
+## <a id="license-{{@index}}"></a>{{{name}}}
+
+Used by: {{#each used_by}}{{crate.name}} {{crate.version}}{{#unless @last}}, {{/unless}}{{/each}}
+
+```
+{{{text}}}
+```
+
+{{/each}}
