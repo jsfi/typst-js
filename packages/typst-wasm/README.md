@@ -128,7 +128,9 @@ option with an invalid value throws.
 
 - **`tagged`** writes the structure tree that accessibility tools read. A PDF offered for download
   generally needs it. `tagged: false` leaves it out, which makes output smaller and faster to export
-  when nobody reads it with assistive technology.
+  when nobody reads it with assistive technology. Tagged PDFs from this package are far smaller than
+  Typst's own; see
+  [Smaller PDFs](https://github.com/jsfi/typst-js#smaller-pdfs-the-krilla-patch).
 - **`timestamp`** is the PDF's creation and modification date, written in UTC. It is also what
   `datetime.today()` returns during the compilation.
 - **`pdfStandards`** takes the CLI's names: `"1.4"` to `"2.0"`, `"a-1b"` to `"a-4e"`, `"ua-1"`. Typst

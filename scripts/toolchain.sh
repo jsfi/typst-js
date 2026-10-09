@@ -1,4 +1,4 @@
-# Sourced by build.sh and scripts/cargo.sh: puts rustup's cargo, which honors
+# Sourced by build.sh, vendor.sh and cargo.sh in scripts/: puts rustup's cargo, which honors
 # rust-toolchain.toml, ahead of any other. Homebrew installs rustup keg-only, outside the PATH; the
 # rustup installer puts it in ~/.cargo/bin, where `cargo install` puts wasm-bindgen and cargo-about
 # as well.

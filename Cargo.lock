@@ -1085,8 +1085,6 @@ dependencies = [
 [[package]]
 name = "krilla"
 version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27da593198b20eeba65caeb73c2bbeec3e53ab08fa549898312ce81c4fce5e33"
 dependencies = [
  "base64 0.22.1",
  "bumpalo",
@@ -2428,8 +2426,6 @@ dependencies = [
 [[package]]
 name = "typst-pdf"
 version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3aef841ff3e606542f3057ce5dd0ff264d53a439e00ed4a91ec00ec8568b3b7f"
 dependencies = [
  "az",
  "bytemuck",

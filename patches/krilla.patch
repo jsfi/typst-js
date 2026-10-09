@@ -1,0 +1,642 @@
+diff --git a/src/document.rs b/src/document.rs
+index 7ae6484..ef8067a 100644
+--- a/src/document.rs
++++ b/src/document.rs
+@@ -15,6 +15,7 @@
+ //! [`Page`]: Page
+ 
+ use crate::chunk_container::ChunkContainer;
++use crate::configure::PdfVersion;
+ use crate::destination::NamedDestination;
+ use crate::error::KrillaResult;
+ use crate::interchange::embed::EmbeddedFile;
+@@ -151,6 +152,22 @@ impl Document {
+             chunk_container,
+         } = self;
+ 
+-        Ok(serializer_context.finish(chunk_container)?.finish())
++        let settings = serializer_context.serialize_settings();
++        let pdf = serializer_context.finish(chunk_container)?.finish();
++
++        if settings.object_streams
++            && !settings.ascii_compatible
++            && !settings.pretty
++            && settings.pdf_version() >= PdfVersion::Pdf15
++        {
++            if let Some(compressed) = crate::object_streams::compress_objects(&pdf) {
++                return Ok(compressed);
++            }
++            // Only reachable if pdf-writer changed how it lays out a document; the tests in
++            // `object_streams` pin that layout.
++            debug_assert!(false, "object streams could not be written");
++        }
++
++        Ok(pdf)
+     }
+ }
+diff --git a/src/lib.rs b/src/lib.rs
+index 49818ff..ef576ef 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -149,6 +149,7 @@ The minimum supported Rust version is **1.92**.
+ #![forbid(unsafe_code)]
+ 
+ mod chunk_container;
++mod object_streams;
+ mod graphics;
+ mod interactive;
+ mod interchange;
+diff --git b/src/object_streams.rs b/src/object_streams.rs
+new file mode 100644
+index 0000000..56e0142
+--- /dev/null
++++ b/src/object_streams.rs
+@@ -0,0 +1,552 @@
++//! Moving the objects of a finished PDF into object streams.
++//!
++//! A tagged document consists mostly of small dictionaries (one structure element per table cell,
++//! for example), and written as indirect objects of their own they take up far more space than the
++//! content they describe. Object streams (ISO 32000-1, 7.5.7) let all objects except streams share
++//! compressed streams instead, and a cross-reference stream (7.5.8) then indexes them, since a
++//! classic cross-reference table cannot point into an object stream.
++//!
++//! The input is the output of [`pdf_writer::Pdf::finish`], so the rewrite does not parse PDF
++//! syntax: every object begins with `N 0 obj` at the offset its classic cross-reference table
++//! records and ends with `endobj`, a stream object's body ends with `endstream`, and the trailer
++//! dictionary follows the table, `/Size` first. Objects are moved verbatim; only their framing
++//! changes. The tests below fail if a pdf-writer update breaks one of these assumptions.
++
++use std::io::Write as _;
++
++use crate::stream::deflate_encode;
++
++/// How many objects one object stream holds. A reader has to inflate a whole stream to reach one
++/// of its objects, so streams stay small; for a large tagged table, 100 also compress 2% better than
++/// 200.
++const OBJECTS_PER_STREAM: usize = 100;
++
++/// How far into an object its header, `N 0 obj`, can reach: its number has at most ten digits.
++const OBJECT_HEADER_LENGTH: usize = 32;
++
++/// The filter-type byte that starts each cross-reference row: PNG's "Up", the difference from the
++/// row above.
++const PNG_UP: u8 = 2;
++
++/// Rewrites `pdf` with every object that is not a stream, and not the document information
++/// dictionary, inside an object stream.
++///
++/// Returns `None` if `pdf` is not laid out the way `pdf_writer` writes a document, in which case
++/// the caller keeps the original.
++pub(crate) fn compress_objects(pdf: &[u8]) -> Option<Vec<u8>> {
++    let layout = Layout::read(pdf)?;
++    let size = layout.objects.iter().map(|&(id, _)| id).max()? + 1;
++    let mut locations = vec![Location::Free; size as usize];
++    let mut out = Vec::with_capacity(pdf.len() / 3);
++    out.extend_from_slice(&pdf[..layout.objects.first()?.1]);
++
++    let compressible = copy_kept_objects(pdf, &layout, &mut out, &mut locations)?;
++    let xref_id = write_object_streams(&mut out, &compressible, &mut locations, size)?;
++    write_xref_stream(&mut out, &mut locations, layout.trailer, xref_id)?;
++    Some(out)
++}
++
++/// What the rewrite reads from pdf-writer's output.
++struct Layout<'a> {
++    /// The in-use objects as object number and byte offset, in the order of their offsets.
++    objects: Vec<(u32, usize)>,
++    /// Where the classic cross-reference table begins, which is where the last object ends.
++    xref_offset: usize,
++    /// The trailer's entries other than `/Size`.
++    trailer: &'a [u8],
++    /// The document information dictionary's object number.
++    info: Option<u32>,
++}
++
++impl<'a> Layout<'a> {
++    fn read(pdf: &'a [u8]) -> Option<Self> {
++        let xref_offset = start_xref(pdf)?;
++        let (mut objects, trailer_start) = xref_table(pdf, xref_offset)?;
++        objects.sort_by_key(|&(_, offset)| offset);
++        let trailer = trailer_entries(pdf, trailer_start)?;
++        let info = reference(trailer, b"/Info");
++        Some(Self {
++            objects,
++            xref_offset,
++            trailer,
++            info,
++        })
++    }
++}
++
++/// Copies the objects that stay outside object streams to `out`, recording where they went, and
++/// returns the others' bodies by object number. Streams cannot go into an object stream, and tools
++/// that update the document information in place expect it outside one.
++fn copy_kept_objects<'a>(
++    pdf: &'a [u8],
++    layout: &Layout,
++    out: &mut Vec<u8>,
++    locations: &mut [Location],
++) -> Option<Vec<(u32, &'a [u8])>> {
++    let mut compressible = Vec::new();
++    for (i, &(id, start)) in layout.objects.iter().enumerate() {
++        let end = layout
++            .objects
++            .get(i + 1)
++            .map_or(layout.xref_offset, |&(_, next)| next);
++        let span = pdf.get(start..end)?;
++        let body = object_body(span)?;
++        if body.ends_with(b"endstream") || Some(id) == layout.info {
++            locations[id as usize] = Location::Offset(out.len());
++            out.extend_from_slice(span);
++        } else {
++            compressible.push((id, body));
++        }
++    }
++    compressible.sort_by_key(|&(id, _)| id);
++    Some(compressible)
++}
++
++/// Writes `compressible` into object streams numbered from `first_id`, recording where each object
++/// went, and returns the next free object number.
++fn write_object_streams(
++    out: &mut Vec<u8>,
++    compressible: &[(u32, &[u8])],
++    locations: &mut Vec<Location>,
++    first_id: u32,
++) -> Option<u32> {
++    let mut next_id = first_id;
++    for group in compressible.chunks(OBJECTS_PER_STREAM) {
++        let stream_id = next_id;
++        next_id += 1;
++
++        let mut index = Vec::new();
++        let mut data = Vec::new();
++        for (position, &(id, body)) in group.iter().enumerate() {
++            write!(index, "{} {} ", id, data.len()).ok()?;
++            data.extend_from_slice(body);
++            data.push(b'\n');
++            locations[id as usize] = Location::Compressed(stream_id, position as u16);
++        }
++        let first = index.len();
++        index.extend_from_slice(&data);
++
++        // Object numbers count up from the original objects', so the stream's number is the next
++        // index of `locations`.
++        debug_assert_eq!(locations.len(), stream_id as usize);
++        locations.push(Location::Offset(out.len()));
++        let entries = format!("/Type/ObjStm/N {}/First {}", group.len(), first);
++        write_stream(out, stream_id, entries.as_bytes(), &deflate_encode(&index))?;
++    }
++    Some(next_id)
++}
++
++/// Writes the cross-reference stream as object `xref_id`, carrying the trailer's `entries`, and the
++/// `startxref` that points to it.
++fn write_xref_stream(
++    out: &mut Vec<u8>,
++    locations: &mut Vec<Location>,
++    trailer: &[u8],
++    xref_id: u32,
++) -> Option<()> {
++    let xref_offset = out.len();
++    debug_assert_eq!(locations.len(), xref_id as usize);
++    locations.push(Location::Offset(xref_offset));
++    let XrefRows {
++        data: rows,
++        width,
++        columns,
++    } = xref_rows(locations);
++
++    let mut entries = Vec::new();
++    write!(
++        entries,
++        "/Type/XRef/Size {}/W[1 {width} 2]/DecodeParms<</Columns {columns}/Predictor 12>>",
++        locations.len(),
++    )
++    .ok()?;
++    entries.extend_from_slice(trailer);
++    write_stream(out, xref_id, &entries, &deflate_encode(&rows))?;
++    write!(out, "startxref\n{xref_offset}\n%%EOF").ok()
++}
++
++/// Where the cross-reference stream points for an object number.
++#[derive(Clone, Copy)]
++enum Location {
++    Free,
++    Offset(usize),
++    Compressed(u32, u16),
++}
++
++/// The cross-reference stream's rows, before compression.
++struct XrefRows {
++    /// The rows, each its filter-type byte and its difference from the row above.
++    data: Vec<u8>,
++    /// The width in bytes of a row's middle field.
++    width: usize,
++    /// The bytes in a row, without its filter-type byte.
++    columns: usize,
++}
++
++/// The cross-reference stream's rows for `locations`.
++///
++/// Each row is stored as its difference from the row above (the PNG "Up" predictor, with a leading
++/// filter-type byte per row). Neighboring entries differ in few bytes, so the rows turn into runs
++/// of zeros that compress to about a thirtieth of their size without the predictor.
++fn xref_rows(locations: &[Location]) -> XrefRows {
++    let largest = locations.iter().fold(0, |max, location| match *location {
++        Location::Offset(offset) => max.max(offset),
++        Location::Compressed(stream, _) => max.max(stream as usize),
++        Location::Free => max,
++    });
++    let width = (usize::BITS - largest.leading_zeros()).div_ceil(8).max(1) as usize;
++    let columns = 1 + width + 2;
++
++    // The free entries form a list through their middle fields, from object 0 back to 0.
++    let free: Vec<usize> = (1..locations.len())
++        .filter(|&id| matches!(locations[id], Location::Free))
++        .collect();
++    let next_free = |id: usize| free.iter().copied().find(|&f| f > id).unwrap_or(0);
++
++    let mut rows = Vec::with_capacity(locations.len() * (columns + 1));
++    let mut previous = vec![0u8; columns];
++    let mut row = Vec::with_capacity(columns);
++    for (id, location) in locations.iter().enumerate() {
++        let (kind, field, generation) = match *location {
++            Location::Free if id == 0 => (0, next_free(0), 0xFFFF),
++            Location::Free => (0, next_free(id), 0),
++            Location::Offset(offset) => (1, offset, 0),
++            Location::Compressed(stream, position) => (2, stream as usize, position),
++        };
++        row.clear();
++        row.push(kind);
++        row.extend_from_slice(&field.to_be_bytes()[size_of::<usize>() - width..]);
++        row.extend_from_slice(&generation.to_be_bytes());
++        rows.push(PNG_UP);
++        rows.extend(
++            row.iter()
++                .zip(&previous)
++                .map(|(byte, above)| byte.wrapping_sub(*above)),
++        );
++        std::mem::swap(&mut previous, &mut row);
++    }
++
++    XrefRows {
++        data: rows,
++        width,
++        columns,
++    }
++}
++
++/// The byte offset that `startxref` gives.
++fn start_xref(pdf: &[u8]) -> Option<usize> {
++    let keyword = rfind(pdf, b"startxref")?;
++    let rest = std::str::from_utf8(&pdf[keyword + b"startxref".len()..]).ok()?;
++    rest.split_ascii_whitespace().next()?.parse().ok()
++}
++
++/// The in-use entries of a classic cross-reference table as object number and byte offset, and
++/// where the `trailer` keyword after the table begins.
++fn xref_table(pdf: &[u8], offset: usize) -> Option<(Vec<(u32, usize)>, usize)> {
++    let table = pdf.get(offset..)?.strip_prefix(b"xref")?;
++    let trailer = find(table, b"trailer")?;
++    let mut tokens = std::str::from_utf8(&table[..trailer])
++        .ok()?
++        .split_ascii_whitespace();
++
++    let mut entries = Vec::new();
++    while let Some(first) = tokens.next() {
++        let first: u32 = first.parse().ok()?;
++        let count: u32 = tokens.next()?.parse().ok()?;
++        for id in first..first + count {
++            let position: usize = tokens.next()?.parse().ok()?;
++            let generation: u32 = tokens.next()?.parse().ok()?;
++            match tokens.next()? {
++                // Only generation 0 objects may go into an object stream; pdf-writer writes no other.
++                "n" if generation == 0 => entries.push((id, position)),
++                "n" => return None,
++                _ => {}
++            }
++        }
++    }
++
++    Some((entries, offset + b"xref".len() + trailer))
++}
++
++/// The trailer dictionary's entries other than `/Size`, which the cross-reference stream
++/// dictionary takes over, as written.
++fn trailer_entries(pdf: &[u8], trailer: usize) -> Option<&[u8]> {
++    let rest = pdf.get(trailer + b"trailer".len()..)?;
++    let open = find(rest, b"<<")? + 2;
++    let close = rfind(&rest[..find(rest, b"startxref")?], b">>")?;
++    let dict = rest[open..close].trim_ascii().strip_prefix(b"/Size")?;
++    let (digits, rest) = leading_digits(dict.trim_ascii_start());
++    (!digits.is_empty()).then(|| rest.trim_ascii())
++}
++
++/// The object number of an indirect reference `key N 0 R` in a dictionary's entries.
++fn reference(entries: &[u8], key: &[u8]) -> Option<u32> {
++    let value = entries
++        .get(find(entries, key)? + key.len()..)?
++        .trim_ascii_start();
++    std::str::from_utf8(leading_digits(value).0)
++        .ok()?
++        .parse()
++        .ok()
++}
++
++/// The decimal digits `value` starts with, and what follows them.
++fn leading_digits(value: &[u8]) -> (&[u8], &[u8]) {
++    value.split_at(value.iter().take_while(|b| b.is_ascii_digit()).count())
++}
++
++/// The object between `N 0 obj` and `endobj`, without surrounding whitespace.
++fn object_body(span: &[u8]) -> Option<&[u8]> {
++    let start = find(&span[..span.len().min(OBJECT_HEADER_LENGTH)], b"obj")? + b"obj".len();
++    let end = rfind(span, b"endobj")?;
++    Some(span.get(start..end)?.trim_ascii())
++}
++
++fn write_stream(out: &mut Vec<u8>, id: u32, entries: &[u8], data: &[u8]) -> Option<()> {
++    write!(out, "{id} 0 obj\n<<").ok()?;
++    out.extend_from_slice(entries);
++    write!(out, "/Filter/FlateDecode/Length {}>>\nstream\n", data.len()).ok()?;
++    out.extend_from_slice(data);
++    out.extend_from_slice(b"\nendstream\nendobj\n\n");
++    Some(())
++}
++
++fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
++    haystack
++        .windows(needle.len())
++        .position(|window| window == needle)
++}
++
++fn rfind(haystack: &[u8], needle: &[u8]) -> Option<usize> {
++    haystack
++        .windows(needle.len())
++        .rposition(|window| window == needle)
++}
++
++#[cfg(test)]
++mod tests {
++    use std::collections::HashMap;
++    use std::io::Read;
++
++    use flate2::read::ZlibDecoder;
++
++    use super::*;
++    use crate::configure::{ConfigurationBuilder, PdfVersion};
++    use crate::metadata::Metadata;
++    use crate::{Document, SerializeSettings};
++
++    /// A document with enough pages for several object streams, written with `settings`.
++    fn document(pages: usize, settings: SerializeSettings) -> Vec<u8> {
++        let mut document = Document::new_with(settings);
++        document.set_metadata(Metadata::new().title("Object streams".into()));
++        for _ in 0..pages {
++            document.start_page().finish();
++        }
++        document.finish().unwrap()
++    }
++
++    fn classic(pages: usize) -> Vec<u8> {
++        document(
++            pages,
++            SerializeSettings {
++                object_streams: false,
++                ..Default::default()
++            },
++        )
++    }
++
++    fn inflate(data: &[u8]) -> Vec<u8> {
++        let mut out = Vec::new();
++        ZlibDecoder::new(data).read_to_end(&mut out).unwrap();
++        out
++    }
++
++    fn integer(dict: &[u8], key: &[u8]) -> usize {
++        let value = dict[find(dict, key).unwrap() + key.len()..].trim_ascii_start();
++        std::str::from_utf8(leading_digits(value).0)
++            .unwrap()
++            .parse()
++            .unwrap()
++    }
++
++    /// The rows of a cross-reference stream, undoing the PNG Up predictor.
++    fn decoded_rows(data: &[u8], columns: usize) -> Vec<Vec<u8>> {
++        let mut previous = vec![0u8; columns];
++        let mut rows = Vec::new();
++        for encoded in data.chunks(columns + 1) {
++            assert_eq!(encoded[0], PNG_UP, "every row uses the Up predictor");
++            let row: Vec<u8> = encoded[1..]
++                .iter()
++                .zip(&previous)
++                .map(|(b, a)| b.wrapping_add(*a))
++                .collect();
++            previous = row.clone();
++            rows.push(row);
++        }
++        rows
++    }
++
++    /// The dictionary and decoded data of the stream object at `offset`.
++    fn stream_at(pdf: &[u8], offset: usize) -> (&[u8], Vec<u8>) {
++        let object = &pdf[offset..];
++        let dict_end = find(object, b">>\nstream\n").unwrap();
++        let dict = &object[..dict_end];
++        let start = dict_end + b">>\nstream\n".len();
++        (
++            dict,
++            inflate(&object[start..start + integer(dict, b"/Length")]),
++        )
++    }
++
++    /// Every object number's cross-reference entry: type, middle field, last field.
++    fn xref_stream(pdf: &[u8]) -> (Vec<(u8, usize, usize)>, Vec<u8>) {
++        let (dict, data) = stream_at(pdf, start_xref(pdf).unwrap());
++        assert!(find(dict, b"/Type/XRef").is_some());
++        let width = integer(dict, b"/W[1 ");
++        let columns = integer(dict, b"/Columns");
++        assert_eq!(columns, 1 + width + 2);
++
++        let field = |bytes: &[u8]| bytes.iter().fold(0, |n, &b| n << 8 | b as usize);
++        let entries: Vec<_> = decoded_rows(&data, columns)
++            .iter()
++            .map(|row| (row[0], field(&row[1..1 + width]), field(&row[1 + width..])))
++            .collect();
++        assert_eq!(entries.len(), integer(dict, b"/Size"));
++        (entries, dict.to_vec())
++    }
++
++    /// Every in-use object's body in a classic PDF.
++    fn classic_bodies(pdf: &[u8]) -> HashMap<u32, Vec<u8>> {
++        let xref = start_xref(pdf).unwrap();
++        let (mut objects, _) = xref_table(pdf, xref).unwrap();
++        objects.sort_by_key(|&(_, offset)| offset);
++        let mut bodies = HashMap::new();
++        for (i, &(id, start)) in objects.iter().enumerate() {
++            let end = objects.get(i + 1).map_or(xref, |&(_, next)| next);
++            bodies.insert(id, object_body(&pdf[start..end]).unwrap().to_vec());
++        }
++        bodies
++    }
++
++    #[test]
++    fn every_object_survives_the_rewrite() {
++        let original = classic(150);
++        let compressed = compress_objects(&original).expect("krilla's own output is rewritable");
++        let bodies = classic_bodies(&original);
++        let (entries, xref_dict) = xref_stream(&compressed);
++
++        let original_trailer =
++            trailer_entries(&original, find(&original, b"trailer").unwrap()).unwrap();
++        assert!(
++            find(&xref_dict, original_trailer).is_some(),
++            "trailer entries carried over"
++        );
++        let info = reference(original_trailer, b"/Info").unwrap();
++
++        let mut streams = HashMap::new();
++        let mut compressed_objects = 0;
++        for (&id, body) in &bodies {
++            let (kind, field, last) = entries[id as usize];
++            let found = match kind {
++                1 => {
++                    let span = &compressed[field..];
++                    assert!(span.starts_with(format!("{id} 0 obj").as_bytes()));
++                    object_body(&span[..find(span, b"endobj").unwrap() + 6])
++                        .unwrap()
++                        .to_vec()
++                }
++                2 => {
++                    compressed_objects += 1;
++                    assert_ne!(id, info, "the information dictionary stays outside");
++                    let (dict, data) = streams.entry(field).or_insert_with(|| {
++                        let (kind, offset, _) = entries[field];
++                        assert_eq!(kind, 1);
++                        let (dict, data) = stream_at(&compressed, offset);
++                        (dict.to_vec(), data)
++                    });
++                    let first = integer(dict, b"/First");
++                    let index: Vec<usize> = std::str::from_utf8(&data[..first])
++                        .unwrap()
++                        .split_ascii_whitespace()
++                        .map(|n| n.parse().unwrap())
++                        .collect();
++                    assert_eq!(index[2 * last], id as usize);
++                    let start = first + index[2 * last + 1];
++                    let end = index.get(2 * last + 3).map_or(data.len(), |o| first + o);
++                    data[start..end].trim_ascii().to_vec()
++                }
++                _ => panic!("object {id} is marked free"),
++            };
++            assert_eq!(&found, body, "object {id}");
++        }
++        assert!(
++            compressed_objects > OBJECTS_PER_STREAM,
++            "spans several object streams"
++        );
++    }
++
++    #[test]
++    fn free_entries_form_a_list() {
++        let locations = [
++            Location::Free,
++            Location::Offset(15),
++            Location::Free,
++            Location::Compressed(5, 0),
++            Location::Free,
++            Location::Offset(120),
++        ];
++        let XrefRows {
++            data: rows,
++            width,
++            columns,
++        } = xref_rows(&locations);
++        let free: Vec<_> = decoded_rows(&rows, columns)
++            .iter()
++            .filter(|row| row[0] == 0)
++            .map(|row| {
++                let next = row[1..1 + width]
++                    .iter()
++                    .fold(0, |n, &b| n << 8 | b as usize);
++                (next, u16::from_be_bytes([row[1 + width], row[2 + width]]))
++            })
++            .collect();
++        assert_eq!(free, [(2, 0xFFFF), (4, 0), (0, 0)]);
++    }
++
++    #[test]
++    fn documents_use_object_streams_from_pdf_15() {
++        let modern = document(2, SerializeSettings::default());
++        assert!(find(&modern, b"/Type/ObjStm").is_some());
++
++        let configuration = ConfigurationBuilder::new()
++            .with_version(PdfVersion::Pdf14)
++            .finish()
++            .unwrap();
++        let old = document(
++            2,
++            SerializeSettings {
++                configuration,
++                ..Default::default()
++            },
++        );
++        assert!(find(&old, b"/Type/ObjStm").is_none());
++        assert!(find(&old, b"\nxref\n").is_some());
++
++        let pretty = document(
++            2,
++            SerializeSettings {
++                pretty: true,
++                ..Default::default()
++            },
++        );
++        assert!(
++            find(&pretty, b"/Type/ObjStm").is_none(),
++            "pretty output stays readable"
++        );
++    }
++
++    #[test]
++    fn foreign_input_is_left_alone() {
++        assert!(compress_objects(b"%PDF-1.7\nnot what pdf-writer writes").is_none());
++    }
++}
+diff --git a/src/serialize.rs b/src/serialize.rs
+index eca1657..bea3b0c 100644
+--- a/src/serialize.rs
++++ b/src/serialize.rs
+@@ -16,7 +16,7 @@ use crate::configure::validate::ValidationStore;
+ use crate::configure::{Configuration, PdfVersion, ValidationError, Validators};
+ use crate::error::{KrillaError, KrillaResult, LimitError};
+ use crate::geom::Size;
+-use crate::graphics::color::{rgb, ColorSpace};
++use crate::graphics::color::{ColorSpace, rgb};
+ use crate::graphics::icc::{ICCBasedColorSpace, ICCProfile};
+ #[cfg(feature = "raster-images")]
+ use crate::graphics::image::Image;
+@@ -52,6 +52,14 @@ pub struct SerializeSettings {
+     /// Whether content streams should be compressed. Leads to significantly smaller file sizes,
+     /// but also longer running times. It is highly recommended that you set this to `true`.
+     pub compress_content_streams: bool,
++    /// Whether all objects other than streams should be stored in compressed object streams,
++    /// indexed by a cross-reference stream. Leads to much smaller tagged documents, whose
++    /// structure tree consists of many small objects.
++    ///
++    /// Only takes effect from PDF 1.5 on, when `ascii_compatible` is `false` and when `pretty` is
++    /// `false`: object streams do not exist before PDF 1.5, are binary, and hide the objects a
++    /// pretty document lays out for reading.
++    pub object_streams: bool,
+     /// Whether device-independent colors should be used instead of
+     /// device-dependent ones.
+     ///
+@@ -142,6 +150,7 @@ impl Default for SerializeSettings {
+             pretty: false,
+             ascii_compatible: false,
+             compress_content_streams: true,
++            object_streams: true,
+             no_device_cs: false,
+             xmp_metadata: true,
+             cmyk_profile: None,

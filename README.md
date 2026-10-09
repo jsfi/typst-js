@@ -30,9 +30,19 @@ The package follows semantic versioning. This table pairs its versions with Typs
 | ------------------ | ------ |
 | 0.1.x              | 0.15.1 |
 
+## Smaller PDFs: the krilla patch
+
+Accessible PDFs are tagged: they carry a structure tree for assistive technology, one small PDF
+object per heading, paragraph and table cell. Typst's PDF library, krilla, stores each of them on its
+own. In a table-heavy document the tags then outweigh the content many times over. At that price,
+accessibility is what gets switched off.
+
+`@jsfi/typst-wasm` therefore patches krilla to compress those objects together. What the patch
+changes, and how, is in [CONTRIBUTING.md](CONTRIBUTING.md#the-object-stream-patch).
+
 ## Contributing
 
-How to build and format the package is in [CONTRIBUTING.md](CONTRIBUTING.md).
+How to build, test and format the package is in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

@@ -8,6 +8,10 @@ source scripts/toolchain.sh
 
 out=pkg
 
+if [[ ! -f vendor/.applied || -n "$(find patches -newer vendor/.applied -print -quit)" ]]; then
+  scripts/vendor.sh
+fi
+
 # The build tools that shape the output, in the versions it is made with: the bindings generator
 # has to match the wasm-bindgen crate exactly, and cargo-about is pinned here.
 cargo_about=0.9.2
