@@ -1,0 +1,17 @@
+{
+	"compilerOptions": {
+		"target": "ES2025",
+		// `Symbol.dispose` (explicit resource management) and the browser types the declarations use.
+		"lib": ["ESNext", "DOM", "DOM.Iterable"],
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"strict": true,
+		"noEmit": true,
+		"verbatimModuleSyntax": true,
+		// `vite.config.ts` imports the two tool configs by their real `.ts` paths.
+		"allowImportingTsExtensions": true,
+		// The packages and examples are JavaScript; type-aware linting reads them through this config.
+		"allowJs": true
+	},
+	"include": ["*.config.ts"]
+}
