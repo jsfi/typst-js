@@ -20,7 +20,7 @@ browsers:
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------- |
 | [`@jsfi/typst-wasm`](packages/typst-wasm/README.md) | The Typst compiler compiled to WebAssembly, with an in-memory file system. It never touches a network or a disk. | Node and browsers |
 
-Its README is its manual: a first example and every option.
+Its README is its manual: a first example, every option, and links to the examples.
 
 ## Versions
 
@@ -39,6 +39,13 @@ accessibility is what gets switched off.
 
 `@jsfi/typst-wasm` therefore patches krilla to compress those objects together. What the patch
 changes, and how, is in [CONTRIBUTING.md](CONTRIBUTING.md#the-object-stream-patch).
+
+## Examples
+
+- [`examples/node.mjs`](examples/node.mjs) compiles a document in Node with `@jsfi/typst-wasm`, with
+  the steps of [`examples/demo.mjs`](examples/demo.mjs), which has to lie beside it.
+- [`examples/browser/`](examples/browser/README.md) is a page with a live preview whose service
+  worker runs the module, with examples of what Typst can do.
 
 ## Contributing
 

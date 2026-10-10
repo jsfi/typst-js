@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Typst in a Service Worker</title>
+		<link rel="stylesheet" href="style.css" />
+	</head>
+	<body>
+		<header>
+			<h1>Typst in a Service Worker</h1>
+			<p>
+				The service worker compiles with <code>@jsfi/typst-wasm</code>; this page only posts the
+				source and shows the answer.
+			</p>
+		</header>
+
+		<main>
+			<section>
+				<div class="controls">
+					<label for="example">Example</label>
+					<select id="example"></select>
+				</div>
+				<div class="controls" id="example-controls"></div>
+				<p class="note" id="controls-note" hidden></p>
+				<label for="source">Typst source</label>
+				<textarea id="source" spellcheck="false"></textarea>
+				<div class="controls">
+					<button id="download" type="button" disabled>Download PDF</button>
+					<button id="download-svg" type="button" disabled>Download SVG</button>
+					<label><input id="tagged" type="checkbox" checked /> Tagged PDF (accessible)</label>
+				</div>
+				<p id="status" role="status">Registering the service worker…</p>
+				<ul id="diagnostics" aria-live="polite"></ul>
+			</section>
+
+			<section aria-label="Preview">
+				<nav id="outline" aria-labelledby="outline-title" hidden>
+					<h2 id="outline-title">Outline from <code>query()</code></h2>
+					<p class="note">
+						The page asks the compiler for <code>&lt;outline-data&gt;</code>, metadata the document
+						fills with its headings and their pages, and builds this list from the answer.
+					</p>
+					<ol id="outline-list"></ol>
+				</nav>
+				<div id="pages"></div>
+			</section>
+		</main>
+
+		<script type="module" src="page.js"></script>
+	</body>
+</html>

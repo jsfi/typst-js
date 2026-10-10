@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="120" viewBox="0 0 480 120" font-family="Libertinus Serif, serif" font-size="13">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5b5b57"/>
+    </marker>
+  </defs>
+  <g fill="#eef3fb" stroke="#4f6dd9" stroke-width="1.5">
+    <rect x="8" y="14" width="118" height="40" rx="6"/>
+    <rect x="8" y="66" width="118" height="40" rx="6"/>
+  </g>
+  <rect x="180" y="36" width="120" height="48" rx="8" fill="#2f8f8a" stroke="#22706c" stroke-width="1.5"/>
+  <g fill="#f3faf9" stroke="#2f8f8a" stroke-width="1.5">
+    <rect x="356" y="8" width="116" height="30" rx="6"/>
+    <rect x="356" y="45" width="116" height="30" rx="6"/>
+    <rect x="356" y="82" width="116" height="30" rx="6"/>
+  </g>
+  <g fill="none" stroke="#5b5b57" stroke-width="1.5" marker-end="url(#arrow)">
+    <path d="M126 34 C152 34 154 52 178 54"/>
+    <path d="M126 86 C152 86 154 68 178 66"/>
+    <path d="M300 52 C326 46 330 24 354 23"/>
+    <path d="M300 60 L354 60"/>
+    <path d="M300 68 C326 74 330 96 354 97"/>
+  </g>
+  <g fill="#1d1d1b" text-anchor="middle">
+    <text x="67" y="39">main.typ</text>
+    <text x="67" y="91">data.json</text>
+    <text x="240" y="65" fill="#ffffff">compiler</text>
+    <text x="414" y="28">PDF</text>
+    <text x="414" y="65">SVG</text>
+    <text x="414" y="102">PNG</text>
+  </g>
+</svg>

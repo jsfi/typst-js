@@ -13,5 +13,5 @@
 		// The packages and examples are JavaScript; type-aware linting reads them through this config.
 		"allowJs": true
 	},
-	"include": ["*.config.ts"]
+	"include": ["*.config.ts", "examples/**/*.mjs", "examples/**/*.js"]
 }

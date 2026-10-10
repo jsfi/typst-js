@@ -6,6 +6,8 @@
 	"type": "module",
 	"scripts": {
 		"build": "./build.sh",
+		"test": "node --test 'examples/**/*.test.mjs'",
+		"example": "node examples/browser/serve.mjs",
 		"format": "vp fmt && scripts/cargo.sh fmt",
 		"format:check": "vp fmt --check && scripts/cargo.sh fmt --check",
 		"lint": "vp lint"

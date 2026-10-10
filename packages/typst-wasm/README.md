@@ -199,6 +199,17 @@ files), and add each file with `addPackageFile`, its path relative to the archiv
   long-lived instance that sees ever new file names now and then, as a worker per job does.
 - Reading a directory fails with "failed to load file (is a directory)", as on the CLI.
 
+## Examples
+
+- [`examples/node.mjs`](https://github.com/jsfi/typst-js/blob/main/examples/node.mjs) compiles a
+  document with an included chapter to PDF and SVG, recompiles after an edit, and prints diagnostics.
+  The steps are in
+  [`examples/demo.mjs`](https://github.com/jsfi/typst-js/blob/main/examples/demo.mjs), which has to
+  lie beside it.
+- [`examples/browser/`](https://github.com/jsfi/typst-js/tree/main/examples/browser#readme) is a
+  page with a live preview whose service worker runs the module, with nine examples of what Typst
+  can do.
+
 ## License
 
 Apache License 2.0 (`LICENSE`). The module contains Typst and further crates under their own
