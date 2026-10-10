@@ -55,12 +55,34 @@ versions have the same API. This table pairs them with Typst.
 
 Accessible PDFs are tagged: they carry a structure tree for assistive technology, one small PDF
 object per heading, paragraph and table cell. Typst's PDF library, krilla, stores each of them on its
-own. In a table-heavy document the tags then outweigh the content many times over. At that price,
-accessibility is what gets switched off.
+own. In a table-heavy document the tags then outweigh the content: the 100-page benchmark under
+_Measurements_ is 10.3 MB tagged, 19 times its untagged size. At that price, accessibility is what
+gets switched off.
 
-`@jsfi/typst-wasm` therefore patches krilla to compress those objects together. `@jsfi/typst-cli`
-runs the official `typst` program, which has no such patch, so its tagged PDFs keep their full
-size. What the patch changes, and how, is in [CONTRIBUTING.md](CONTRIBUTING.md#the-object-stream-patch).
+`@jsfi/typst-wasm` therefore patches krilla to compress those objects together, which brings the
+tagged benchmark down to 1.7 MB. `@jsfi/typst-cli` runs the official `typst`
+program, which has no such patch, so its tagged PDFs keep their full size. What the patch changes,
+and how, is in [CONTRIBUTING.md](CONTRIBUTING.md#the-object-stream-patch).
+
+## Measurements
+
+[`benchmarks/tables.typ`](benchmarks/tables.typ) is 100 pages of dense tables with synthetic data.
+`npm run bench` ([`benchmarks/pdf.mjs`](benchmarks/pdf.mjs)) compiles it to PDF, tagged and untagged,
+with each package and with the `typst` program on one thread, all with the fonts the module ships and
+every run in a process of its own. Median of five runs on an Apple M2 Max, Node 24.21.0, typst 0.15.1:
+
+|                              | Tagged | PDF      | Untagged | PDF     |
+| ---------------------------- | ------ | -------- | -------- | ------- |
+| `@jsfi/typst-wasm`           | 2.69 s | 1.68 MB  | 2.50 s   | 0.50 MB |
+| `@jsfi/typst-cli`, all cores | 1.18 s | 10.30 MB | 1.08 s   | 0.55 MB |
+| `typst compile --jobs 1`     | 1.49 s | 10.30 MB | 1.38 s   | 0.55 MB |
+
+The module runs on one thread, so `typst compile --jobs 1` is the fair comparison of speed:
+WebAssembly takes about 1.8 times as long. The times are the compilation alone; loading the module
+comes before it, and the CLI package's include writing the project to disk and starting the program.
+Only the module's PDFs are smaller, through the patch of _Smaller PDFs_, which puts the objects of an
+untagged PDF into object streams as well. The numbers depend on the machine and its load; run the
+benchmark to compare a change on yours.
 
 ## Examples
 

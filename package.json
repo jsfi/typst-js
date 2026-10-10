@@ -11,6 +11,7 @@
 		"build": "./build.sh",
 		"test": "npm test --workspace @jsfi/typst-cli && node --test 'examples/**/*.test.mjs'",
 		"example": "node examples/browser/serve.mjs",
+		"bench": "node benchmarks/pdf.mjs",
 		"format": "vp fmt && scripts/cargo.sh fmt",
 		"format:check": "vp fmt --check && scripts/cargo.sh fmt --check",
 		"lint": "vp lint"
