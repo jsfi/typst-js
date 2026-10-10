@@ -4,6 +4,10 @@ The [Typst](https://typst.app) compiler compiled to WebAssembly, for Node and br
 Typst documents to PDF and SVG from an in-memory project: your code hands in every file, package and
 font as bytes, and the module never touches a network or a disk.
 
+[`@jsfi/typst-cli`](https://github.com/jsfi/typst-js/tree/main/packages/typst-cli#readme) offers the
+same API on top of the `typst` command-line program, so that you can switch between the two without
+changing your code.
+
 ## Getting started
 
 ```sh

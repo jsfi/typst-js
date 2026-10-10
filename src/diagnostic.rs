@@ -22,7 +22,9 @@ pub struct Diagnostic {
     pub path: Option<String>,
     /// The byte offset in the file where the diagnostic starts.
     pub start: Option<usize>,
-    /// The byte offset in the file where the diagnostic ends.
+    /// The byte offset in the file where the diagnostic ends. For an error with an empty span that
+    /// Typst's parser did not report, such as one in a malformed CSV file, @jsfi/typst-cli gives
+    /// the end one character after the start, as the typst program draws it.
     pub end: Option<usize>,
     /// The one-based line of `start`.
     pub line: Option<usize>,

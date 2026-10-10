@@ -1,5 +1,6 @@
-// The steps the Node example takes with a compiler: a document with an included chapter to PDF and
-// SVG, a recompilation after an edit, and the diagnostics of an error.
+// The steps both Node examples take with a compiler, whichever package it comes from: a document
+// with an included chapter to PDF and SVG, a recompilation after an edit, and the diagnostics of an
+// error.
 
 const encoder = new TextEncoder();
 
@@ -36,6 +37,7 @@ $ sum_(k=1)^n k = (n(n+1)) / 2 $
 	compiler.setMain('/main.typ');
 
 	const pdf = compilePdf(compiler, true);
+	// The module reuses the layout of the first compilation here; the CLI lays out again.
 	compilePdf(compiler, false);
 
 	compiler.addFile('/chapter.typ', encoder.encode('== Kapitel\n#lorem(41)'));

@@ -1,6 +1,7 @@
 /target
 /pkg/
 /examples/out.pdf
+/examples/out-cli.pdf
 /vendor
 node_modules/
 .idea/

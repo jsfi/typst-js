@@ -18,7 +18,9 @@ const OPTIONS: &str = r#"
 export interface PdfOptions {
     /**
      * Whether to write a tagged PDF, the structure accessibility tools read. Defaults to `true`, like
-     * Typst. An untagged PDF is far smaller and faster to write for table-heavy documents.
+     * Typst. An untagged PDF is far smaller and faster to write for table-heavy documents. The
+     * tagged PDFs of @jsfi/typst-cli are larger still, as its typst program does not compress the
+     * tags into object streams.
      */
     tagged?: boolean;
     /**

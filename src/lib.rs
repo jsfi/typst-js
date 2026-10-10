@@ -32,6 +32,8 @@ use world::{InMemoryWorld, Overrides, file_id};
 const CACHE_MAX_AGE: usize = 10;
 
 /// A Typst compiler with its own in-memory project.
+// @jsfi/typst-cli's declarations are generated from these doc comments, so they describe what both
+// packages do; this one's memoization is in its README.
 #[wasm_bindgen]
 pub struct Compiler {
     world: InMemoryWorld,
@@ -40,6 +42,8 @@ pub struct Compiler {
 #[wasm_bindgen]
 impl Compiler {
     /// Creates a compiler with an empty project. It knows the fonts given to `addFont`.
+    /// One of @jsfi/typst-cli also knows the typst program's embedded fonts, unless `init()` was
+    /// given `ignoreEmbeddedFonts`.
     #[wasm_bindgen(constructor)]
     pub fn new() -> Compiler {
         Compiler {
@@ -58,6 +62,8 @@ impl Compiler {
     }
 
     /// Adds or replaces a project file, such as `/main.typ` or `/images/logo.png`.
+    /// In @jsfi/typst-cli, which writes the project to disk to compile it, a compilation throws for
+    /// files the file system cannot hold side by side, such as `/a` beside `/a/b.txt`.
     #[wasm_bindgen(js_name = addFile)]
     pub fn add_file(
         &mut self,
@@ -72,7 +78,8 @@ impl Compiler {
     }
 
     /// Adds a file of a package, for example `("@preview/cetz:0.4.2", "/src/lib.typ", …)`.
-    /// The package's `typst.toml` has to be added as well.
+    /// The package's `typst.toml` has to be added as well. The package @jsfi/typst-cli writes its
+    /// files to disk as `addFile` describes.
     #[wasm_bindgen(js_name = addPackageFile)]
     pub fn add_package_file(
         &mut self,
@@ -268,7 +275,7 @@ impl<T> Exported<T> {
 }
 
 /// The id of the project file at `path`, which has to be a string. `addFile` checks its data
-/// argument between the two, so it does not use this.
+/// argument between the two, as the CLI package does, so it does not use this.
 fn project_file_id(path: &JsValue) -> Result<FileId, JsError> {
     file_id(VirtualRoot::Project, &string_argument(path, "path")?)
 }

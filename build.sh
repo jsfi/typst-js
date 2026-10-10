@@ -44,4 +44,7 @@ cp packages/typst-wasm/README.md LICENSE "$out/"
 cargo-about generate --locked --fail about.hbs --output-file "$out/THIRD_PARTY_LICENSES.md"
 node scripts/assemble-package.mjs "$metadata" "$out"
 
+# @jsfi/typst-cli declares the same API: its index.d.ts is generated from these declarations.
+node packages/typst-cli/scripts/generate-types.mjs "$out/typst_wasm.d.ts"
+
 ls -l "$out"

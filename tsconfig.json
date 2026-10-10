@@ -13,5 +13,13 @@
 		// The packages and examples are JavaScript; type-aware linting reads them through this config.
 		"allowJs": true
 	},
-	"include": ["*.config.ts", "examples/**/*.mjs", "examples/**/*.js"]
+	"include": [
+		"*.config.ts",
+		"packages/typst-cli/src/**/*.js",
+		"packages/typst-cli/test/**/*.mjs",
+		"packages/typst-cli/index.d.ts",
+		"packages/typst-cli/scripts/**/*.mjs",
+		"examples/**/*.mjs",
+		"examples/**/*.js"
+	]
 }
