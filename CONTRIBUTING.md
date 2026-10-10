@@ -1,6 +1,6 @@
 # Contributing
 
-How to build, test and format the two packages of this repository. Using them is described in
+How to build, test, format and publish the two packages of this repository. Using them is described in
 their READMEs, [`@jsfi/typst-wasm`](packages/typst-wasm/README.md) and
 [`@jsfi/typst-cli`](packages/typst-cli/README.md); the [README](README.md) introduces both.
 
@@ -16,6 +16,7 @@ their READMEs, [`@jsfi/typst-wasm`](packages/typst-wasm/README.md) and
 | `scripts/`                | The build's helpers: rustup's `cargo`, `vendor/`, assembling `pkg/`      |
 | `NOTICE`, `licenses/`     | This project's notice and Typst's, which `pkg/NOTICE` is assembled from  |
 | `about.toml`, `about.hbs` | The licenses `cargo-about` accepts, and how it writes them               |
+| `.github/workflows/`      | The workflow that tests every push and publishes a version tag           |
 
 ## Build
 
@@ -74,7 +75,8 @@ Nothing checks the facts the READMEs repeat, such as the version table, the PDF 
 measurements; update them by hand with the code.
 
 The `cargo test` command tests the object-stream patch, comparing every object of a krilla document
-before and after the rewrite (see _Patched dependencies_). It runs on `vendor/`, which `scripts/vendor.sh`
+before and after the rewrite (see _Patched dependencies_). On Linux it needs fontconfig's development
+files (`libfontconfig1-dev` on Debian and Ubuntu), which one of krilla's dev-dependencies links. It runs on `vendor/`, which `scripts/vendor.sh`
 creates (and `./build.sh` before it builds).
 
 ## Formatting and linting
@@ -262,3 +264,22 @@ Format edited Typst files with Typst's own rustfmt settings so the diffs carry o
 `use_field_init_shorthand = true`, `merge_derives = false`. Check the result by compiling one document per
 removed feature, which must fail with its error and not crash, and one with text, maths, a table, a PNG
 and an SVG, whose PDF must come out the same size as with the full build.
+
+## Publishing
+
+`.github/workflows/ci.yml` builds and tests both packages on every push and pull request, and
+publishes them when a tag `v<version>` is pushed:
+
+1. Raise the version in `Cargo.toml` and in `packages/typst-cli/package.json` to the same number,
+   and the README's version table with them; build, so that `Cargo.lock` follows, and commit.
+2. Tag the commit `v<version>` and push the tag. The workflow checks that both packages have the
+   tag's version, and publishes both by trusted publishing, with provenance.
+
+A pre-release such as `0.2.0-beta.1` is released the same way. It is published under the dist-tag its
+identifier names (`beta`, `rc`, …), so that `npm install` keeps installing the latest release and
+`npm install @jsfi/typst-wasm@beta` the pre-release.
+
+Each package's trusted publisher on npmjs.com names the repository `jsfi/typst-js` and the workflow
+`ci.yml`. npm can only set it up for a package that exists, so the first version of each was
+published by hand, after `./build.sh` and `npm test`: `npm publish pkg/` and
+`npm publish packages/typst-cli/`.

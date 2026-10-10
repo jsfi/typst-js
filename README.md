@@ -94,7 +94,7 @@ benchmark to compare a change on yours.
 
 ## Contributing
 
-How to build, test and format the packages is in [CONTRIBUTING.md](CONTRIBUTING.md).
+How to build, test, format and release the packages is in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
