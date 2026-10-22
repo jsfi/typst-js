@@ -13,6 +13,13 @@ export async function serviceWorker(statusLine) {
 			'This browser has no service workers, or the page is not served over HTTPS or localhost.',
 		);
 	}
+	// When the files have changed, registering installs a new worker, which takes over at once. The
+	// page then reloads, as it would otherwise compile with code older than its own.
+	if (navigator.serviceWorker.controller) {
+		navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), {
+			once: true,
+		});
+	}
 	try {
 		await navigator.serviceWorker.register('./service-worker.js', { type: 'module' });
 	} catch (error) {

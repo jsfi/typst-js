@@ -2,8 +2,9 @@
 // its service worker load (service workers need HTTPS or localhost). No dependencies:
 //
 //   node examples/browser/serve.mjs [port]   or   npm run example
+import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,8 +27,44 @@ const types = {
 };
 
 const PAGE = '/examples/browser/';
+/** The service worker, which the server stamps with the code it imports (see `stampedWorker`). */
+const WORKER = join(root, 'examples/browser/service-worker.js');
+
+/**
+ * The directories of the modules the worker imports, besides the bindings in pkg/. Of pkg/, the
+ * worker imports only the bindings; the WebAssembly and the fonts it fetches itself, checking the
+ * server for newer ones, so they need no stamp, though they are served.
+ */
+const WORKER_IMPORTS = ['examples/browser'];
+
 /** The directories served, each with its separator, so that `/pkg-other` is not inside `/pkg`. */
-const served = ['examples/browser', 'pkg'].map((directory) => join(root, directory) + sep);
+const served = [...WORKER_IMPORTS, 'pkg'].map((directory) => join(root, directory) + sep);
+
+/**
+ * The worker's source with a last line that fingerprints the code it imports: every file's name,
+ * size and time of change, so that adding, changing or removing one changes the line. Browsers find
+ * an update by comparing a module worker's own script, not the modules it imports, so a change to
+ * those has to change the script too; else the page keeps compiling with the old code.
+ */
+async function stampedWorker() {
+	const listed = await Promise.all(
+		WORKER_IMPORTS.map(async (directory) =>
+			(await readdir(join(root, directory), { recursive: true }))
+				.filter((name) => name.endsWith('.js'))
+				.map((name) => join(directory, name)),
+		),
+	);
+	const files = [...listed.flat(), 'pkg/typst_wasm.js'].sort((a, b) => a.localeCompare(b));
+	const lines = await Promise.all(
+		files.map(async (file) => {
+			const info = await stat(join(root, file)).catch(() => undefined);
+			return `${file} ${info?.size} ${info?.mtimeMs}`;
+		}),
+	);
+	const fingerprint = createHash('sha256').update(lines.join('\n')).digest('hex').slice(0, 16);
+	const stamp = `\n// The code it imports, fingerprinted: ${fingerprint}\n`;
+	return Buffer.concat([await readFile(WORKER), Buffer.from(stamp)]);
+}
 
 /** Answers a request: a file of the example or of pkg/, a redirect to the page, or an error. */
 async function handle(request, response) {
@@ -62,9 +99,10 @@ async function handle(request, response) {
 		reply(404, 'Not found');
 		return;
 	}
+	const body = file === WORKER ? await stampedWorker() : undefined;
 	response.writeHead(200, {
 		'Content-Type': types[extname(file)] ?? 'application/octet-stream',
-		'Content-Length': info.size,
+		'Content-Length': body?.length ?? info.size,
 		'Last-Modified': info.mtime.toUTCString(),
 		// Revalidated on every load, so that a rebuilt pkg/ or an edited example shows at once.
 		'Cache-Control': 'no-cache',
@@ -73,7 +111,8 @@ async function handle(request, response) {
 		response.end();
 		return;
 	}
-	createReadStream(file).pipe(response);
+	if (body) response.end(body);
+	else createReadStream(file).pipe(response);
 }
 
 // `localhost` may resolve to either loopback address, so the server listens on both.

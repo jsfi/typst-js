@@ -58,7 +58,11 @@ load them from the cache instead of the network.
 
 - **Install:** the worker puts the module and Typst's default fonts into Cache Storage, then takes
   control of the page at once (`skipWaiting`, `clients.claim`), which the page waits for on its first
-  visit.
+  visit. When a later visit finds changed files, a new worker installs and takes over, and the page
+  reloads once, so that it compiles with the new code rather than the worker that served it.
+  Browsers look for changes in a module worker's own script only, not in the modules it imports, so
+  `serve.mjs` ends the worker's script with a fingerprint of the code it imports: each file's name,
+  size and time of change. A static host needs such a version in the worker's script, too.
 - **Compile:** the page posts a request to `compile`: the source, the format, whether to tag a PDF
   and the controls' values for `sys.inputs`. The worker answers with the PDF, the SVG pages, or the
   diagnostics of a source with errors. `protocol.js` defines the requests and answers for both sides.
