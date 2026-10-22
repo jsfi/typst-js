@@ -28,20 +28,25 @@ export const SOURCE_ERRORS = 422;
 
 const DETAILS_LENGTH_HEADER = 'X-Typst-Details-Length';
 
+/** Where the worker puts the Typst library of `@jsfi/typst-fields`, which the form imports. */
+export const FIELDS_PATH = '/fields.typ';
+
 /**
  * A request: `source` compiled to `format` (`"pdf"`, `"svg"` or `"query"`), `tagged` for a PDF,
- * `inputs` as `sys.inputs`, and for a query its `selector`, `field` and `one`.
+ * `fields` for a PDF whose marked boxes become form fields, `inputs` as `sys.inputs`, and for a
+ * query its `selector`, `field` and `one`.
  */
 export function compileRequest({
 	source,
 	format = 'pdf',
 	tagged = true,
+	fields = false,
 	inputs = {},
 	selector,
 	field,
 	one,
 }) {
-	return { source, format, tagged, inputs, selector, field, one };
+	return { source, format, tagged, fields, inputs, selector, field, one };
 }
 
 /**

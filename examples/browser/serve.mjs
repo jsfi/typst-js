@@ -1,5 +1,6 @@
-// Serves the example and pkg/ on http://localhost, the two directories of the repository the page and
-// its service worker load (service workers need HTTPS or localhost). No dependencies:
+// Serves the example, pkg/ and the sources of @jsfi/typst-fields on http://localhost, the directories of
+// the repository the page and its service worker load (service workers need HTTPS or localhost). No
+// dependencies:
 //
 //   node examples/browser/serve.mjs [port]   or   npm run example
 import { createHash } from 'node:crypto';
@@ -35,7 +36,7 @@ const WORKER = join(root, 'examples/browser/service-worker.js');
  * worker imports only the bindings; the WebAssembly and the fonts it fetches itself, checking the
  * server for newer ones, so they need no stamp, though they are served.
  */
-const WORKER_IMPORTS = ['examples/browser'];
+const WORKER_IMPORTS = ['examples/browser', 'packages/typst-fields/src'];
 
 /** The directories served, each with its separator, so that `/pkg-other` is not inside `/pkg`. */
 const served = [...WORKER_IMPORTS, 'pkg'].map((directory) => join(root, directory) + sep);

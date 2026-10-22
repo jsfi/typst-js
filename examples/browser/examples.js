@@ -72,6 +72,17 @@ export const EXAMPLES = [
 		],
 	},
 	{
+		id: 'form',
+		label: 'Form: fillable fields, prefilled in any script',
+		fields: true,
+		controls: [
+			select('values', 'Values', [
+				['empty', 'Empty'],
+				['prefilled', 'Prefilled'],
+			]),
+		],
+	},
+	{
 		id: 'calendar',
 		label: 'Calendar: a year computed by the document',
 		controls: [

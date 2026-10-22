@@ -10,11 +10,17 @@
 // It imports the bindings as an ES module, so it is registered as a module service worker; the
 // README's Limits name the browsers that support one.
 
+import {
+	addFieldsAsync,
+	fieldsLibrary,
+	previewInput,
+} from '../../packages/typst-fields/src/index.js';
 import init, { Compiler } from '../../pkg/typst_wasm.js';
 import {
 	CLAIM,
 	COMPILE_PATH,
 	compileRequest,
+	FIELDS_PATH,
 	jsonAnswer,
 	MAIN_PATH,
 	MODULE_PATH,
@@ -71,6 +77,7 @@ function ready() {
 		for (const font of fonts) compiler.addFont(await bytes(font));
 		for (const [path, response] of Object.entries(assets))
 			compiler.addFile(path, await bytes(response));
+		compiler.addFile(FIELDS_PATH, new TextEncoder().encode(fieldsLibrary));
 		return compiler;
 	})().catch((error) => {
 		compilerReady = undefined;
@@ -128,18 +135,19 @@ async function bytes(response) {
  */
 async function compile(request) {
 	try {
-		const { source, format, tagged, inputs, selector, field, one } = compileRequest(
+		const { source, format, tagged, fields, inputs, selector, field, one } = compileRequest(
 			await request.json(),
 		);
 		const typst = await ready();
 		// The one compiler serves every request, so each one sets everything it depends on.
-		typst.setInputs(inputs);
+		// A preview has no fields, so the form draws their ticks, dots and highlights itself.
+		typst.setInputs(format === 'svg' ? { ...inputs, [previewInput]: 'true' } : inputs);
 		typst.addFile(MAIN_PATH, new TextEncoder().encode(source));
 		typst.setMain(MAIN_PATH);
 
 		if (format === 'query') return answerQuery(typst, selector, { field, one });
 		if (format === 'svg') return answerSvg(typst);
-		return answerPdf(typst, tagged);
+		return await answerPdf(typst, tagged, fields);
 	} catch (error) {
 		return jsonAnswer({ error: String(error?.message ?? error) }, 500);
 	}
@@ -159,14 +167,38 @@ function answerSvg(typst) {
 	);
 }
 
-function answerPdf(typst, tagged) {
-	return timed(
-		() => typst.compilePdf({ tagged }),
-		({ pdf, diagnostics }, milliseconds) =>
-			pdf
-				? pdfAnswer(pdf, diagnostics, milliseconds)
-				: jsonAnswer({ diagnostics, milliseconds }, SOURCE_ERRORS),
+/** Zlib for `@jsfi/typst-fields`, by the browser's compression streams, which every worker has. */
+const COMPRESSION = {
+	inflate: (data) => through(data, new DecompressionStream('deflate')),
+	deflate: (data) => through(data, new CompressionStream('deflate')),
+};
+
+/** `data` run through `transform`, a compression or decompression stream. */
+async function through(data, transform) {
+	return new Uint8Array(
+		await new Response(new Blob([data]).stream().pipeThrough(transform)).arrayBuffer(),
 	);
+}
+
+/**
+ * The PDF answer; with `fields`, the PDF's marked boxes made form fields by `@jsfi/typst-fields`,
+ * whose refusal, such as of a value in an untagged PDF, comes back as an error among the
+ * diagnostics.
+ */
+async function answerPdf(typst, tagged, fields) {
+	// The time is the compilation's, which the page reports as such; adding fields is not counted.
+	const { pdf, diagnostics, milliseconds } = timed(
+		() => typst.compilePdf({ tagged }),
+		(result, time) => ({ ...result, milliseconds: time }),
+	);
+	if (!pdf) return jsonAnswer({ diagnostics, milliseconds }, SOURCE_ERRORS);
+	if (!fields) return pdfAnswer(pdf, diagnostics, milliseconds);
+	try {
+		return pdfAnswer(await addFieldsAsync(pdf, COMPRESSION), diagnostics, milliseconds);
+	} catch (error) {
+		const refusal = { severity: 'error', message: `addFields: ${error.message}`, hints: [] };
+		return jsonAnswer({ diagnostics: [...diagnostics, refusal], milliseconds }, SOURCE_ERRORS);
+	}
 }
 
 /** The answer `answer` builds from what `run` returns and how long it took. */

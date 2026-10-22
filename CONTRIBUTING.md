@@ -68,7 +68,8 @@ compares `@jsfi/typst-wasm` and `@jsfi/typst-cli`: their exports and every objec
 results of every valid call, and that both throw for invalid paths, package specifications and
 options. Without a `typst` CLI on the `PATH`, the call-by-call comparison is skipped and the rest
 still runs. `examples/browser/examples.test.mjs` compiles every example with the module as PDF/UA-1,
-with each control at its limits and options.
+with each control at its limits and options, and with veraPDF, if installed, validates the form's PDF
+with its fields, empty and prefilled.
 
 `packages/typst-fields/test/` compiles forms with `@jsfi/typst-wasm` and `@jsfi/typst-cli`, adds
 their fields and checks the update it appends, which is uncompressed text, and the errors. With

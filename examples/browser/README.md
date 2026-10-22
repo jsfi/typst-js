@@ -2,7 +2,8 @@
 
 `index.html` edits a Typst source with a live SVG preview and downloads it as SVG, or as a PDF that is
 tagged or not as its checkbox says. It offers the examples in `samples/`, each showing a feature of
-Typst.
+Typst, and one a form whose PDF has fillable fields, made by
+[`@jsfi/typst-fields`](../../packages/typst-fields/README.md).
 
 | File                 | What it does                                                        |
 | -------------------- | ------------------------------------------------------------------- |
@@ -17,7 +18,7 @@ Typst.
 | `protocol.js`        | Defines the requests and answers between the page and the worker    |
 | `service-worker.js`  | Compiles with the module, which it caches with the fonts and assets |
 | `style.css`          | Styles the page                                                     |
-| `serve.mjs`          | Serves the page and `pkg/` on localhost                             |
+| `serve.mjs`          | Serves the page, `pkg/` and `@jsfi/typst-fields` on localhost       |
 | `samples/`           | The examples' Typst sources, and the bibliography `citations` cites |
 | `pipeline.svg`       | The image `why-typst` shows, added to the compiler's project        |
 | `examples.test.mjs`  | Checks that `samples/`, `examples.js` and the table below agree     |
@@ -36,6 +37,7 @@ change recompiles the same source.
 | `languages`  | Quotation marks, hyphenation and names that follow the language             | language       |
 | `newspaper`  | Columns with floating figures placed across or inside them                  | columns        |
 | `themes`     | One text in three looks, only `set` and `show` rules differ                 | theme          |
+| `form`       | Form fields of every kind and feature, with values in Latin and Arabic      | values         |
 | `calendar`   | A year with ISO weeks and localized names, computed by the document         | year, language |
 
 The documents pass PDF/UA-1 with tagging on. `pipeline.svg` and `samples/refs.bib` are files of the
@@ -69,6 +71,13 @@ load them from the cache instead of the network.
 - **Files besides the source:** the worker caches `pipeline.svg` with the fonts and adds it to the
   compiler's project as `/pipeline.svg`, which the document reads with `image("pipeline.svg")`. Any
   image, data or source file reaches a document this way, through `addFile`.
+- **Form fields:** the worker adds the Typst library of `@jsfi/typst-fields` to the project as
+  `/fields.typ`, which `form` imports, and passes the form's PDF through `addFieldsAsync` before it
+  answers, with the browser's `DecompressionStream` and `CompressionStream` as `inflate` and
+  `deflate`. The preview, an SVG, shows the boxes and the values Typst set in them; the downloaded
+  PDF has fields over them. As the preview has no fields, the worker sets the input `previewInput`
+  names for it, and the library draws the ticks, dots and highlights the fields would. A refusal,
+  such as of a value in an untagged PDF, shows as an error among the diagnostics.
 - **Diagnostics:** the worker passes each diagnostic's file, byte range, line and column on. One that
   points into the edited source is a button: clicking it selects the faulty span in the editor, the
   page converting the UTF-8 byte offsets into the editor's UTF-16 positions.

@@ -182,7 +182,7 @@ async function downloadPdf() {
 	download.disabled = true;
 	try {
 		const text = editor.value;
-		const response = await post(text, { format: 'pdf' });
+		const response = await post(text, { format: 'pdf', fields: selectedExample().fields });
 		if (!response.ok) {
 			const { diagnostics, error } = await response.json();
 			if (error) {
