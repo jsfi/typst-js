@@ -13,18 +13,22 @@ It is open source, written in Rust, and a modern alternative to LaTeX.
 ## Why this repository exists
 
 Typst's own compiler is a Rust library and a command-line program. Neither can be called from
-JavaScript. This repository provides two npm packages that let JavaScript run Typst, in Node and in
-browsers, behind one API:
+JavaScript. This repository provides three npm packages: two that let JavaScript run Typst, in Node
+and in browsers, behind one API, and one that adds form fields to the PDFs they make:
 
-| Package                                             | What it is                                                                                                       | Runs in           |
-| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------- |
-| [`@jsfi/typst-wasm`](packages/typst-wasm/README.md) | The Typst compiler compiled to WebAssembly, with an in-memory file system. It never touches a network or a disk. | Node and browsers |
-| [`@jsfi/typst-cli`](packages/typst-cli/README.md)   | The same API, running the official `typst` command-line program.                                                 | Node              |
+| Package                                                 | What it is                                                                                                       | Runs in           |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ----------------- |
+| [`@jsfi/typst-wasm`](packages/typst-wasm/README.md)     | The Typst compiler compiled to WebAssembly, with an in-memory file system. It never touches a network or a disk. | Node and browsers |
+| [`@jsfi/typst-cli`](packages/typst-cli/README.md)       | The same API, running the official `typst` command-line program.                                                 | Node              |
+| [`@jsfi/typst-fields`](packages/typst-fields/README.md) | Fillable, accessible form fields, added to the PDFs of either package after compiling.                           | Node and browsers |
 
-Code written against one package runs on the other. Two things differ: `init()` and `initSync()`,
-because one loads a module and the other finds a program, and fonts, which the program embeds and
-the module leaves to `addFont`. Each package's README is its manual: a first example, every option,
-and links to the examples.
+`@jsfi/typst-fields` works on the PDFs of both: a Typst library marks boxes in the document, and the
+package turns them into form fields of every kind PDF has, still passing PDF/UA-1.
+
+Code written against `@jsfi/typst-wasm` runs on `@jsfi/typst-cli`, and back. Two things differ:
+`init()` and `initSync()`, because one loads a module and the other finds a program, and fonts,
+which the program embeds and the module leaves to `addFont`. Each package's README is its manual: a
+first example, every option, and links to the examples.
 
 ### Which package to use
 
@@ -44,12 +48,13 @@ towards the module, adding fonts.
 
 ## Versions
 
-Both packages are released together, at the same version, following semantic versioning: equal
-versions have the same API. This table pairs them with Typst.
+The three packages are released together, at the same version, following semantic versioning: equal
+versions of `@jsfi/typst-wasm` and `@jsfi/typst-cli` have the same API, and `@jsfi/typst-fields` of
+that version works on their PDFs. This table pairs them with Typst.
 
-| `@jsfi/typst-wasm` | `@jsfi/typst-cli` | Typst                      |
-| ------------------ | ----------------- | -------------------------- |
-| 0.1.x              | 0.1.x             | 0.15.1 bundled / CLI 0.15+ |
+| `@jsfi/typst-wasm` | `@jsfi/typst-cli` | `@jsfi/typst-fields` | Typst                      |
+| ------------------ | ----------------- | -------------------- | -------------------------- |
+| 0.1.x              | 0.1.x             | 0.1.x                | 0.15.1 bundled / CLI 0.15+ |
 
 ## Smaller PDFs: the krilla patch
 

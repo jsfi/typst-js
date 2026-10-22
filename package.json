@@ -1,15 +1,16 @@
 {
 	"name": "typst-js",
 	"private": true,
-	"description": "The workspace of @jsfi/typst-wasm (built into pkg/ by build.sh) and @jsfi/typst-cli (packages/typst-cli)",
+	"description": "The workspace of @jsfi/typst-wasm (built into pkg/ by build.sh), @jsfi/typst-cli and @jsfi/typst-fields (packages/)",
 	"license": "Apache-2.0",
 	"workspaces": [
-		"packages/typst-cli"
+		"packages/typst-cli",
+		"packages/typst-fields"
 	],
 	"type": "module",
 	"scripts": {
 		"build": "./build.sh",
-		"test": "npm test --workspace @jsfi/typst-cli && node --test 'examples/**/*.test.mjs'",
+		"test": "npm test --workspace @jsfi/typst-cli --workspace @jsfi/typst-fields && node --test 'examples/**/*.test.mjs'",
 		"example": "node examples/browser/serve.mjs",
 		"bench": "node benchmarks/pdf.mjs",
 		"format": "vp fmt && scripts/cargo.sh fmt",

@@ -19,6 +19,9 @@
 		"packages/typst-cli/test/**/*.mjs",
 		"packages/typst-cli/index.d.ts",
 		"packages/typst-cli/scripts/**/*.mjs",
+		"packages/typst-fields/src/**/*.js",
+		"packages/typst-fields/test/**/*.mjs",
+		"packages/typst-fields/index.d.ts",
 		"examples/**/*.mjs",
 		"examples/**/*.js"
 	]

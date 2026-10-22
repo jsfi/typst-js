@@ -1,5 +1,5 @@
-# Builds and tests both packages on every push and pull request. A tag `v<version>` also publishes
-# both packages at that version to npm, by trusted publishing (OIDC, no token) with provenance; each
+# Builds and tests the three packages on every push and pull request. A tag `v<version>` also
+# publishes them at that version to npm, by trusted publishing (OIDC, no token) with provenance; each
 # package's trusted publisher on npmjs.com names this workflow.
 name: CI
 
@@ -87,16 +87,33 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
 
-      # Both packages are released together, at the version the tag names.
+      # The three packages are released together, at the version the tag names.
       - name: Check the versions against the tag
         run: |
           tag="${GITHUB_REF_NAME#v}"
           wasm=$(node -p "require('./pkg/package.json').version")
           cli=$(node -p "require('./packages/typst-cli/package.json').version")
-          if [[ "$wasm" != "$tag" || "$cli" != "$tag" ]]; then
-            echo "Tag $GITHUB_REF_NAME, but @jsfi/typst-wasm is $wasm and @jsfi/typst-cli is $cli." >&2
+          fields=$(node -p "require('./packages/typst-fields/package.json').version")
+          if [[ "$wasm" != "$tag" || "$cli" != "$tag" || "$fields" != "$tag" ]]; then
+            echo "Tag $GITHUB_REF_NAME, but @jsfi/typst-wasm is $wasm, @jsfi/typst-cli is $cli and @jsfi/typst-fields is $fields." >&2
             exit 1
           fi
+
+      # npm sets up trusted publishing only for a package that exists, so each package's first version
+      # is published by hand. A tag before that would publish the others and then fail, so it stops
+      # here, before anything is published.
+      - name: Check that every package is on npm
+        run: |
+          for package in @jsfi/typst-wasm @jsfi/typst-cli @jsfi/typst-fields; do
+            if ! output=$(npm view "$package" name 2>&1); then
+              if grep -q E404 <<< "$output"; then
+                echo "$package is not on npm yet: publish its first version by hand, as CONTRIBUTING.md says." >&2
+              else
+                echo "$output" >&2
+              fi
+              exit 1
+            fi
+          done
 
       # A pre-release goes to the dist-tag its identifier names, `0.2.0-beta.1` to `beta`, which npm
       # requires; a release goes to `latest`.
@@ -110,3 +127,4 @@ jobs:
 
       - run: npm publish ./pkg --provenance --tag "${{ steps.dist-tag.outputs.tag }}"
       - run: npm publish ./packages/typst-cli --provenance --tag "${{ steps.dist-tag.outputs.tag }}"
+      - run: npm publish ./packages/typst-fields --provenance --tag "${{ steps.dist-tag.outputs.tag }}"

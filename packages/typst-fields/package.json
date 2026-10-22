@@ -1,0 +1,48 @@
+{
+	"name": "@jsfi/typst-fields",
+	"version": "0.1.0",
+	"description": "Fillable, accessible form fields for the PDFs of @jsfi/typst-wasm and @jsfi/typst-cli",
+	"keywords": [
+		"accessibility",
+		"acroform",
+		"form",
+		"pdf",
+		"pdf-ua",
+		"typst"
+	],
+	"homepage": "https://github.com/jsfi/typst-js/tree/main/packages/typst-fields#readme",
+	"bugs": {
+		"url": "https://github.com/jsfi/typst-js/issues"
+	},
+	"license": "Apache-2.0",
+	"author": "Martin Göttsche",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/jsfi/typst-js.git",
+		"directory": "packages/typst-fields"
+	},
+	"files": [
+		"index.d.ts",
+		"src"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"main": "./src/index.js",
+	"types": "./index.d.ts",
+	"exports": {
+		".": {
+			"types": "./index.d.ts",
+			"default": "./src/index.js"
+		},
+		"./package.json": "./package.json"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"scripts": {
+		"test": "node --test"
+	},
+	"engines": {
+		"node": ">=22.12"
+	}
+}
